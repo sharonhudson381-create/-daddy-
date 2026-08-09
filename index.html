@@ -610,3 +610,434 @@
       0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
       30% { opacity: 1; transform: translateY(-3px); }
     }
+
+    #panel {
+      width: 100%;
+      max-width: 700px;
+      flex-shrink: 0;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.26s ease;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid var(--line);
+    }
+
+    #panel.open { max-height: 230px; }
+  
+    #tabs {
+      display: flex;
+      gap: 6px;
+      padding: 10px 14px 4px;
+      overflow-x: auto;
+    }
+
+    #tabs::-webkit-scrollbar { height: 0; }
+
+    .tab {
+      border: none;
+      background: none;
+      font-size: 13px;
+      color: var(--muted);
+      padding: 5px 11px;
+      border-radius: 20px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .tab.on { background: var(--me); color: #fff; }
+
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+      gap: 2px;
+      padding: 6px 12px 14px;
+      overflow-y: auto;
+      max-height: 172px;
+    }
+
+    #grid::-webkit-scrollbar { width: 0; }
+
+    .em {
+      border: none;
+      background: none;
+      font-size: 25px;
+      line-height: 1;
+      padding: 8px 0;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .em:active { background: rgba(200, 169, 138, 0.22); }
+
+    #input-area {
+      width: 100%;
+      max-width: 700px;
+      padding: 10px 14px calc(env(safe-area-inset-bottom) + 14px);
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .circle {
+      border: none;
+      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      flex-shrink: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.15s, background 0.2s;
+    }
+
+    #emoji-btn {
+      background: #fff;
+      font-size: 21px;
+      box-shadow: 0 2px 8px rgba(90, 62, 54, 0.09);
+    }
+
+    #emoji-btn.on { background: #f0e3d5; }
+
+    #send-btn {
+      background: linear-gradient(160deg, var(--me) 0%, var(--me2) 100%);
+      color: #fff;
+      font-size: 19px;
+      box-shadow: 0 3px 10px rgba(184, 149, 122, 0.34);
+    }
+
+    #send-btn:disabled { opacity: 0.4; box-shadow: none; }
+    .circle:active { transform: scale(0.92); }
+
+    #input {
+      flex: 1;
+      border: 1.5px solid transparent;
+      border-radius: 21px;
+      padding: 11px 16px;
+      font-size: 16px;
+      outline: none;
+      background: #fff;
+      resize: none;
+      max-height: 120px;
+      font-family: inherit;
+      line-height: 1.5;
+      box-shadow: 0 2px 8px rgba(90, 62, 54, 0.07);
+      transition: border-color 0.2s;
+    }
+
+    #input:focus { border-color: var(--me); }
+  </style>
+  </head>
+  <body>
+
+  <div id="header">
+    <span id="dot"></span>
+    <span id="title">我们的家</span>
+    <button id="clear-btn">清空</button>
+  </div>
+
+  <div id="chat-box"></div>
+
+  <div id="panel">
+    <div id="tabs"></div>
+    <div id="grid"></div>
+  </div>
+
+  <div id="input-area">
+    <button id="emoji-btn" class="circle">☺</button>
+    <textarea id="input" placeholder="说点什么..." rows="1"></textarea>
+    <button id="send-btn" class="circle">↑</button>
+  </div>
+
+  <script>
+    var chatBox = document.getElementById('chat-box');
+    var input = document.getElementById('input');
+    var sendBtn = document.getElementById('send-btn');
+    var emojiBtn = document.getElementById('emoji-btn');
+    var clearBtn = document.getElementById('clear-btn');
+    var panel = document.getElementById('panel');
+    var tabsEl = document.getElementById('tabs');
+    var gridEl = document.getElementById('grid');
+
+    var history = [];
+    try {
+      history = JSON.parse(localStorage.getItem('chat_history') || '[]');
+      if (!Array.isArray(history)) history = [];
+    } catch (e) {
+      history = [];
+    }
+
+    var accessPassword = localStorage.getItem('access_password') || '';
+    var sending = false;
+
+    var PACKS = [
+      { name: '常用', list: '😊 😄 🥰 😍 🤗 😌 😳 🥺 😢 😭 🙈 😴 🤔 😅 😆 🙃 😘 😚 🤭 😶 🫠 🥱 😪 🫶
+  🤝 👋 👍 🙏 💪 ✨' },
+      { name: '心情', list: '❤️  🧡 💛 💚 💙 💜 🤍 🖤 💔 💕 💞 💗 💓 💖 💘 💝 ⭐ 🌟 💫 🔥 🌈 ☀️  🌤️  ⛅
+  🌙 ❄️  🌸 🌼 🌷 🍀' },
+      { name: '生活', list: '🍚 🍜 🍲 🍱 🍙 🍞 🥐 🍰 🧁 🍮 🍓 🍑 🍇 🍉 🍊 🍌 ☕ 🍵 🧋 🥛 🍺 🍷 🎂 🍫
+  🍬 🍭 🥟 🍤 🍗 🥗' },
+      { name: '日常', list: '🏠 🛏️  🚿 🧸 📚 ✏️  💻 📱 🎧 🎵 🎬 📷 🚗 ✈️  🌏 🏖️  ⛰️  🎈 🎁 🎉 🕐 💤 🚶 🏃
+  💊 🩹 🧹 🛒 💰 📝' },
+      { name: '动物', list: '🐶 🐱 🐰 🐹 🐻 🐼 🐨 🐯 🦊 🐷 🐮 🐸 🐔 🐧 🐦 🦆 🦉 🐝 🦋 🐌 🐳 🐬 🐟 🐙
+  🦖 🦔 🐿️  🐾 🌵 🌿' }
+    ];
+
+    var packIndex = 0;
+
+    function buildTabs() {
+      tabsEl.innerHTML = '';
+      PACKS.forEach(function (p, i) {
+        var b = document.createElement('button');
+        b.className = 'tab' + (i === packIndex ? ' on' : '');
+        b.textContent = p.name;
+        b.addEventListener('click', function () {
+          packIndex = i;
+          buildTabs();
+          buildGrid();
+        });
+        tabsEl.appendChild(b);
+      });
+    }
+
+    function buildGrid() {
+      gridEl.innerHTML = '';
+      PACKS[packIndex].list.split(' ').forEach(function (e) {
+        if (!e) return;
+        var b = document.createElement('button');
+        b.className = 'em';
+        b.textContent = e;
+        b.addEventListener('click', function () {
+          insertText(e);
+        });
+        gridEl.appendChild(b);
+      });
+    }
+
+    function insertText(t) {
+      var start = input.selectionStart === null ? input.value.length : input.selectionStart;
+      var end = input.selectionEnd === null ? input.value.length : input.selectionEnd;
+      input.value = input.value.slice(0, start) + t + input.value.slice(end);
+      var pos = start + t.length;
+      input.setSelectionRange(pos, pos);
+      input.focus();
+      autoGrow();
+      refreshSendBtn();
+    }
+
+    function isEmojiOnly(s) {
+      var stripped = s.replace(/[\s️‍]/g,'');
+      if (!stripped) return false;
+      if (Array.from(stripped).length > 3) return false;
+      return !/[0-9A-Za-z一-龥　-〿＀-￯]/.test(stripped);
+    }
+
+    function timeLabel() {
+      var d = new Date();
+      var h = d.getHours();
+      var m = d.getMinutes();
+      return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+    }
+
+    function bubble(role, text, note) {
+      var row = document.createElement('div');
+      row.className = 'row ' + (note ? 'note' : (role === 'user' ? 'user' : 'ai'));
+
+      var msg = document.createElement('div');
+      msg.className = 'msg';
+      if (!note && isEmojiOnly(text)) msg.className += ' emoji-only';
+      msg.textContent = text;
+      row.appendChild(msg);
+
+      if (!note) {
+        var t = document.createElement('div');
+        t.className = 'time';
+        t.textContent = timeLabel();
+        row.appendChild(t);
+      }
+
+      chatBox.appendChild(row);
+      return row;
+    }
+
+    function render() {
+      chatBox.innerHTML = '';
+      if (history.length === 0) {
+        var e = document.createElement('div');
+        e.id = 'empty';
+        e.innerHTML = '<span class="big">🏠</span>这里只有我们两个<br>说点什么吧';
+        chatBox.appendChild(e);
+        return;
+      }
+      history.forEach(function (m) {
+        bubble(m.role, m.content, false);
+      });
+      scrollDown();
+    }
+
+    function scrollDown() {
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function showNote(text) {
+      bubble('assistant', text, true);
+      scrollDown();
+    }
+
+    function addTyping() {
+      var row = document.createElement('div');
+      row.className = 'row ai';
+      row.id = 'typing-row';
+      var box = document.createElement('div');
+      box.className = 'typing';
+      box.innerHTML = '<i></i><i></i><i></i>';
+      row.appendChild(box);
+      chatBox.appendChild(row);
+      scrollDown();
+    }
+
+    function removeTyping() {
+      var r = document.getElementById('typing-row');
+      if (r) r.remove();
+    }
+
+    function ensurePassword() {
+      if (!accessPassword) {
+        var entered = prompt('请输入口令');
+        accessPassword = entered ? entered.trim() : '';
+        if (accessPassword) {
+          localStorage.setItem('access_password', accessPassword);
+        }
+      }
+      return accessPassword;
+    }
+
+    function save() {
+      try {
+        localStorage.setItem('chat_history', JSON.stringify(history));
+      } catch (e) {
+        // 存储满了就不存,不影响聊天
+      }
+    }
+
+    function autoGrow() {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+    }
+
+    function refreshSendBtn() {
+      sendBtn.disabled = sending || input.value.trim() === '';
+    }
+
+    async function send() {
+      if (sending) return;
+
+      var text = input.value.trim();
+      if (!text) return;
+
+      var pwd = ensurePassword();
+      if (!pwd) return;
+
+      sending = true;
+      history.push({ role: 'user', content: text });
+      input.value = '';
+      autoGrow();
+      refreshSendBtn();
+      panel.classList.remove('open');
+      emojiBtn.classList.remove('on');
+      render();
+      addTyping();
+
+      try {
+        var res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-access-password': pwd
+          },
+          body: JSON.stringify({ messages: history })
+        });
+
+        var data = await res.json();
+        removeTyping();
+
+        if (res.status === 401) {
+          localStorage.removeItem('access_password');
+          accessPassword = '';
+          history.pop();
+          render();
+          showNote('口令不对,刷新页面重新输入');
+          return;
+        }
+
+        if (data && data.content && data.content[0] && data.content[0].text) {
+          history.push({ role: 'assistant', content: data.content[0].text });
+          save();
+          render();
+        } else {
+          var reason;
+          if (data && data.error) {
+            reason = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+          } else {
+            reason = JSON.stringify(data).slice(0, 300);
+          }
+          history.pop();
+          save();
+          render();
+          showNote('出错了:' + reason);
+        }
+      } catch (e) {
+        removeTyping();
+        history.pop();
+        save();
+        render();
+        showNote('网络出错了,检查连接后重试');
+      } finally {
+        sending = false;
+        refreshSendBtn();
+      }
+    }
+
+    sendBtn.addEventListener('click', send);
+
+    emojiBtn.addEventListener('click', function () {
+      var open = panel.classList.toggle('open');
+      emojiBtn.classList.toggle('on', open);
+      if (open) setTimeout(scrollDown, 280);
+    });
+
+    clearBtn.addEventListener('click', function () {
+      if (history.length === 0) return;
+      if (!confirm('清空所有聊天记录?清空后无法恢复。')) return;
+      history = [];
+      save();
+      render();
+    });
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+
+    input.addEventListener('input', function () {
+      autoGrow();
+      refreshSendBtn();
+    });
+
+    input.addEventListener('focus', function () {
+      setTimeout(scrollDown, 300);
+    });
+
+    buildTabs();
+    buildGrid();
+    render();
+    refreshSendBtn();
+  </script>
+
+  </body>
+  </html>
