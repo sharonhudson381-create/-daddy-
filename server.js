@@ -1,3 +1,9 @@
+process.on('uncaughtException', (err) => {
+    console.error('全局未捕获致命异常：', err);
+});
+process.on('unhandledRejection', (reason) => {
+    console.error('未处理的Promise异步异常：', reason);
+});
 module.exports = async function (req, res) {
     try {
         // 解析请求体
