@@ -38,7 +38,6 @@ const PERSONA = require('../persona');
       },
       { role: 'assistant', content: '好，我记住了。小猫，过来。' }
     ].concat(recent);
-
     try {
       const response = await fetch(baseUrl + '/v1/messages', {
         method: 'POST',
@@ -46,10 +45,16 @@ const PERSONA = require('../persona');
           'Content-Type': 'application/json',
           'anthropic-version': '2023-06-01',
           'x-api-key': apiKey,
+          'Authorization': 'Bearer ' + apiKey
+        },
+        body: JSON.stringify({
+          model: process.env.MODEL_ID || 'claude-sonnet-4-6',
+          max_tokens: 2048,
+          system: persona,
           messages: payload
         })
       });
-
+      
       const raw = await response.text();
       let data;
       try {
@@ -60,7 +65,7 @@ const PERSONA = require('../persona');
           endpoint: baseUrl
         });
       }
-
+      
       if (!response.ok) {
         return res.status(response.status).json({
           error: (data && data.error && data.error.message) || JSON.stringify(data).slice(0, 300),
@@ -68,7 +73,7 @@ const PERSONA = require('../persona');
           endpoint: baseUrl
         });
       }
-
+      
       res.status(200).json(data);
     } catch (err) {
       res.status(500).json({ error: err.message, endpoint: baseUrl });
