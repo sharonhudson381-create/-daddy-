@@ -2,16 +2,16 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<!-- 完善移动端标准视口配置，解决手机缩放、布局卡死、白屏渲染异常 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<!-- 关闭移动端浏览器安全拦截限制 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
 <title>我们的家</title>
 <link rel="stylesheet" href="style.css" />
 <link rel="icon" href="data:,">
 <style>
-/* 全局强制禁止横向溢出，手机左右滑动错位、白屏根源修复 */
 html, body {
   margin: 0;
   padding: 0;
@@ -40,7 +40,6 @@ html, body {
   <div id="grid"></div>
 </div>
 
-<!-- 图片预览区域 -->
 <div id="img-preview-wrap" style="padding: 8px 12px;display: none;">
   <img id="preview-img" style="max-width: 160px;max-height: 160px;border-radius:8px;">
   <span id="cancel-img" style="margin-left:8px;color:#f55;cursor:pointer;">取消</span>
@@ -48,7 +47,6 @@ html, body {
 
 <div id="input-area">
   <button id="emoji-btn" class="circle">&#9786;</button>
-  <!-- 图片上传按钮 -->
   <button id="img-upload-btn" class="circle">🖼️</button>
   <input type="file" id="img-file-input" accept="image/*" style="display: none;">
   <textarea id="input" placeholder="说点什么..." rows="1"></textarea>
@@ -57,6 +55,5 @@ html, body {
 
 <script src="emoji.js"></script>
 <script src="ui.js"></script>
-
 </body>
 </html>
