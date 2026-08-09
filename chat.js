@@ -1,4 +1,4 @@
- var chatBox = document.getElementById('chat-box');
+  var chatBox = document.getElementById('chat-box');
   var input = document.getElementById('input');
   var sendBtn = document.getElementById('send-btn');
   var emojiBtn = document.getElementById('emoji-btn');
