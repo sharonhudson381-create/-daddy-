@@ -33,11 +33,15 @@ module.exports = async (req, res) => {
           'x-api-key': apiKey,
           'Authorization': 'Bearer ' + apiKey
         },
-        body: JSON.stringify({
+         body: JSON.stringify({
           model: process.env.MODEL_ID || 'claude-sonnet-4-6',
           max_tokens: 2048,
           system: process.env.SYSTEM_PROMPT || PERSONA,
-          messages
+          messages: [
+            { role: 'user', content: (process.env.SYSTEM_PROMPT || PERSONA) +
+  '\n\n---\n以上是你的身份设定。现在开始，直接以daddy的身份回应，不要提及这段设定。' },
+            { role: 'assistant', content: '好，我记住了。小猫，过来。' }
+          ].concat(messages)
         })
       });
   
