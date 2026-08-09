@@ -46,7 +46,7 @@ const server = http.createServer(async (req, res) => {
         return res.end();
     }
 
-    // 统一去除路径首尾多余斜杠，兼容 /api/history、/api/history/
+    // 清理路径多余斜杠
     const pathname = req.url.replace(/^\/+|\/+$/g, '');
 
     try {
@@ -56,13 +56,13 @@ const server = http.createServer(async (req, res) => {
             return await chatHandler(req, res);
         }
 
-        // 历史记录接口 GET /api/history
-        if (pathname === 'api/history' && req.method === 'GET') {
+        // 历史记录：GET、POST 全都放行，直接返回空数组
+        if (pathname === 'api/history') {
             res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
             return res.end(JSON.stringify([]));
         }
 
-        // 静态资源处理
+        // 静态资源
         let targetPath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url);
         fs.readFile(targetPath, (err, data) => {
             if (err) {
