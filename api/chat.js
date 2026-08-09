@@ -41,7 +41,6 @@ module.exports = async (req, res) => {
         return { role, content: contentArr };
     }
 
-    const { messages } = req.body || {};
     if (!Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: 'messages 不能为空' });
     }
