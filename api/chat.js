@@ -1,43 +1,53 @@
-const PERSONA = require('../persona');
-
-const MAX_TURNS = 60;
-
-// 将单条消息转为 Claude 支持的 content 结构（兼容纯文本 / 文本+图片）
-function buildMessageItem(msg) {
-    const { role, content, image } = msg;
-    // 没有图片：直接返回字符串
-    if (!image) {
-        return { role, content };
-    }
-
-    // 携带 base64 图片，组装多模态数组格式
-    const contentArr = [];
-    // 文字部分
-    if (content && content.trim()) {
-        contentArr.push({
-            type: "text",
-            text: content
-        });
-    }
-    // 图片部分，拆解 base64
-    const [mimePart, base64Data] = image.split(',');
-    const mediaType = mimePart.replace('data:', '');
-    contentArr.push({
-        type: "image",
-        source: {
-            type: "base64",
-            media_type: mediaType,
-            data: base64Data
-        }
-    });
-
-    return {
-        role,
-        content: contentArr
-    };
-}
-
+// 新增跨域前置处理
 module.exports = async (req, res) => {
+    // CORS 全局放行，解决移动端浏览器跨域拦截
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-access-password');
+
+    // 预检 OPTIONS 请求直接放行
+    if (req.method === 'OPTIONS') {
+        return res.status(204).end();
+    }
+
+    const PERSONA = require('../persona');
+    const MAX_TURNS = 60;
+
+    // 将单条消息转为 Claude 支持的 content 结构（兼容纯文本 / 文本+图片）
+    function buildMessageItem(msg) {
+        const { role, content, image } = msg;
+        // 没有图片：直接返回字符串
+        if (!image) {
+            return { role, content };
+        }
+
+        // 携带 base64 图片，组装多模态数组格式
+        const contentArr = [];
+        // 文字部分
+        if (content && content.trim()) {
+            contentArr.push({
+                type: "text",
+                text: content
+            });
+        }
+        // 图片部分，拆解 base64
+        const [mimePart, base64Data] = image.split(',');
+        const mediaType = mimePart.replace('data:', '');
+        contentArr.push({
+            type: "image",
+            source: {
+                type: "base64",
+                media_type: mediaType,
+                data: base64Data
+            }
+        });
+
+        return {
+            role,
+            content: contentArr
+        };
+    }
+
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -62,26 +72,21 @@ module.exports = async (req, res) => {
         return res.status(500).json({ error: '服务端没读到 API_KEY' });
     }
 
-    const persona = process.env.SYSTEM_PROMPT || PERSONA;
+    // 环境变量优先级高于本地persona文件
+    const systemPrompt = process.env.SYSTEM_PROMPT?.trim() || PERSONA;
     const recent = messages.slice(-MAX_TURNS);
 
-    // 固定开场人设引导消息
-    const initMsgs = [
-        {
-            role: 'user',
-            content: persona +
-                '\n\n---\n以上是你的身份设定。现在开始，直接以daddy的身份回应，不要提及这段设定。'
-        },
-        { role: 'assistant', content: '好，我记住了。小猫，过来。' }
-    ];
-
-    // 遍历历史消息，自动处理图片格式
+    // 删掉重复塞入人设的初始化对话，system参数统一承载人设，减少冗余
     const formattedRecent = recent.map(item => buildMessageItem(item));
-    const payload = [...initMsgs, ...formattedRecent];
 
     try {
+        // 设置15秒超时，手机弱网避免无限挂起
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+
         const response = await fetch(baseUrl + '/v1/messages', {
             method: 'POST',
+            signal: controller.signal,
             headers: {
                 'Content-Type': 'application/json',
                 'anthropic-version': '2023-06-01',
@@ -90,10 +95,11 @@ module.exports = async (req, res) => {
             body: JSON.stringify({
                 model: process.env.MODEL_ID || 'claude-sonnet-4-6',
                 max_tokens: 2048,
-                system: persona,
-                messages: payload
+                system: systemPrompt,
+                messages: formattedRecent
             })
         });
+        clearTimeout(timer);
 
         const raw = await response.text();
         let data;
@@ -116,6 +122,9 @@ module.exports = async (req, res) => {
 
         res.status(200).json(data);
     } catch (err) {
+        if (err.name === 'AbortError') {
+            return res.status(504).json({ error: '请求超时，请切换WiFi重试' });
+        }
         res.status(500).json({ error: err.message, endpoint: baseUrl });
     }
 };
