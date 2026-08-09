@@ -774,27 +774,59 @@
     var accessPassword = localStorage.getItem('access_password') || '';
     var sending = false;
 
-    var PACKS = [
-      { name: '常用', list: '😊 😄 🥰 😍 🤗 😌 😳 🥺 😢 😭 🙈 😴 🤔 😅 😆 🙃 😘 😚 🤭 😶 🫠 🥱 😪 🫶
-  🤝 👋 👍 🙏 💪 ✨' },
-      { name: '心情', list: '❤️  🧡 💛 💚 💙 💜 🤍 🖤 💔 💕 💞 💗 💓 💖 💘 💝 ⭐ 🌟 💫 🔥 🌈 ☀️  🌤️  ⛅
-  🌙 ❄️  🌸 🌼 🌷 🍀' },
-      { name: '生活', list: '🍚 🍜 🍲 🍱 🍙 🍞 🥐 🍰 🧁 🍮 🍓 🍑 🍇 🍉 🍊 🍌 ☕ 🍵 🧋 🥛 🍺 🍷 🎂 🍫
-  🍬 🍭 🥟 🍤 🍗 🥗' },
-      { name: '日常', list: '🏠 🛏️  🚿 🧸 📚 ✏️  💻 📱 🎧 🎵 🎬 📷 🚗 ✈️  🌏 🏖️  ⛰️  🎈 🎁 🎉 🕐 💤 🚶 🏃
-  💊 🩹 🧹 🛒 💰 📝' },
-      { name: '动物', list: '🐶 🐱 🐰 🐹 🐻 🐼 🐨 🐯 🦊 🐷 🐮 🐸 🐔 🐧 🐦 🦆 🦉 🐝 🦋 🐌 🐳 🐬 🐟 🐙
-  🦖 🦔 🐿️  🐾 🌵 🌿' }
-    ];
+    var EM = {
+      常用: [
+        '😊', '😄', '🥰', '😍', '🤗',
+        '😌', '😳', '🥺', '😢', '😭',
+        '🙈', '😴', '🤔', '😅', '😆',
+        '🙃', '😘', '😚', '🤭', '😶',
+        '🥱', '😪', '🫶', '🤝', '👋',
+        '👍', '🙏', '💪', '✨', '🎀'
+      ],
+      心情: [
+        '❤️ ', '🧡', '💛', '💚', '💙',
+        '💜', '🤍', '🖤', '💔', '💕',
+        '💞', '💗', '💓', '💖', '💘',
+        '💝', '⭐', '🌟', '💫', '🔥',
+        '🌈', '☀️ ', '⛅', '🌙', '❄️ ',
+        '🌸', '🌼', '🌷', '🍀', '🌿'
+      ],
+      生活: [
+        '🍚', '🍜', '🍲', '🍱', '🍙',
+        '🍞', '🥐', '🍰', '🧁', '🍮',
+        '🍓', '🍑', '🍇', '🍉', '🍊',
+        '🍌', '☕', '🍵', '🧋', '🥛',
+        '🍺', '🍷', '🎂', '🍫', '🍬',
+        '🍭', '🥟', '🍤', '🍗', '🥗'
+      ],
+      日常: [
+        '🏠', '🛏️ ', '🚿', '🧸', '📚',
+        '✏️ ', '💻', '📱', '🎧', '🎵',
+        '🎬', '📷', '🚗', '✈️ ', '🌏',
+        '🏖️ ', '⛰️ ', '🎈', '🎁', '🎉',
+        '🕐', '💤', '🚶', '🏃', '💊',
+        '🩹', '🧹', '🛒', '💰', '📝'
+      ],
+      动物: [
+        '🐶', '🐱', '🐰', '🐹', '🐻',
+        '🐼', '🐨', '🐯', '🦊', '🐷',
+        '🐮', '🐸', '🐔', '🐧', '🐦',
+        '🦆', '🦉', '🐝', '🦋', '🐌',
+        '🐳', '🐬', '🐟', '🐙', '🦖',
+        '🦔', '🐿️ ', '🐾', '🌵', '🍂'
+      ]
+    };
+
+    var PACK_NAMES = ['常用', '心情', '生活', '日常', '动物'];
 
     var packIndex = 0;
 
     function buildTabs() {
       tabsEl.innerHTML = '';
-      PACKS.forEach(function (p, i) {
+      PACK_NAMES.forEach(function (name, i) {
         var b = document.createElement('button');
         b.className = 'tab' + (i === packIndex ? ' on' : '');
-        b.textContent = p.name;
+        b.textContent = name;
         b.addEventListener('click', function () {
           packIndex = i;
           buildTabs();
@@ -806,8 +838,7 @@
 
     function buildGrid() {
       gridEl.innerHTML = '';
-      PACKS[packIndex].list.split(' ').forEach(function (e) {
-        if (!e) return;
+      EM[PACK_NAMES[packIndex]].forEach(function (e) {
         var b = document.createElement('button');
         b.className = 'em';
         b.textContent = e;
