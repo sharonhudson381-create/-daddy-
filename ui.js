@@ -148,7 +148,7 @@ var chatBox = document.getElementById('chat-box');
   function autoGrow() {
     input.style.height = 'auto';
     var h = input.scrollHeight;
-    if (h > 120) h = 120;
+    if (h > 160) h = 160;
     input.style.height = h + 'px';
   }
 
