@@ -57,12 +57,12 @@ var chatBox = document.getElementById('chat-box');
   var PACK_NAMES = ['常用', '心情', '生活', '日常', '动物'];
   var packIndex = 0;
 
-  var history = [];
+  var msgs = [];
   try {
-    history = JSON.parse(localStorage.getItem('chat_history') || '[]');
-    if (!Array.isArray(history)) history = [];
+    msgs = JSON.parse(localStorage.getItem('chat_history') || '[]');
+    if (!Array.isArray(msgs)) msgs = [];
   } catch (e) {
-    history = [];
+    msgs = [];
   }
 
   var accessPassword = localStorage.getItem('access_password') || '';
@@ -162,14 +162,14 @@ var chatBox = document.getElementById('chat-box');
 
   function render() {
     chatBox.innerHTML = '';
-    if (history.length === 0) {
+    if (msgs.length === 0) {
       var e = document.createElement('div');
       e.id = 'empty';
       e.innerHTML = '<span class="big">\u{1F3E0}</span>这里只有我们两个<br>说点什么吧';
       chatBox.appendChild(e);
       return;
     }
-    history.forEach(function (m) {
+    msgs.forEach(function (m) {
       buble(m.role, m.content, false);
     });
     scrollDown();
@@ -210,7 +210,7 @@ var chatBox = document.getElementById('chat-box');
 
   function save() {
     try {
-      localStorage.setItem('chat_history', JSON.stringify(history));
+      localStorage.setItem('chat_history', JSON.stringify(msgs));
     } catch (e) {
       // 存储满了就跳过，不影响聊天
     }
@@ -237,7 +237,7 @@ var chatBox = document.getElementById('chat-box');
     if (!pwd) return;
 
     sending = true;
-    history.push({ role: 'user', content: text });
+    msgs.push({ role: 'user', content: text });
     input.value = '';
     autoGrow();
     refreshSendBtn();
@@ -252,7 +252,7 @@ var chatBox = document.getElementById('chat-box');
         'Content-Type': 'application/json',
         'x-access-password': pwd
       },
-      body: JSON.stringify({ messages: history })
+      body: JSON.stringify({ messages: msgs })
     }).then(function (res) {
       return res.json().then(function (data) {
         return { status: res.status, data: data };
@@ -263,7 +263,7 @@ var chatBox = document.getElementById('chat-box');
       if (r.status === 401) {
         localStorage.removeItem('access_password');
         accessPassword = '';
-        history.pop();
+        msgs.pop();
         render();
         showNote('口令不对，刷新页面重新输入');
         return;
@@ -271,7 +271,7 @@ var chatBox = document.getElementById('chat-box');
 
       var data = r.data;
       if (data && data.content && data.content[0] && data.content[0].text) {
-        history.push({ role: 'assistant', content: data.content[0].text });
+        msgs.push({ role: 'assistant', content: data.content[0].text });
         save();
         render();
         return;
@@ -287,13 +287,13 @@ var chatBox = document.getElementById('chat-box');
       } else {
         reason = JSON.stringify(data).slice(0, 300);
       }
-      history.pop();
+      msgs.pop();
       save();
       render();
       showNote('出错了：' + reason);
     }).catch(function () {
       removeTyping();
-      history.pop();
+      msgs.pop();
       save();
       render();
       showNote('网络出错了，检查连接后重试');
@@ -316,9 +316,9 @@ var chatBox = document.getElementById('chat-box');
   });
   
   clearBtn.addEventListener('click', function () {
-    if (history.length === 0) return;
+    if (msgs.length === 0) return;
     if (!confirm('清空所有聊天记录？清空后无法恢复。')) return;
-    history = [];
+    msgs = [];
     save();
     render();
   });
