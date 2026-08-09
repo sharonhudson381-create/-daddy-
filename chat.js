@@ -170,7 +170,7 @@ var chatBox = document.getElementById('chat-box');
       return;
     }
     msgs.forEach(function (m) {
-      buble(m.role, m.content, false);
+       bubble(m.role, m.content, false);
     });
     scrollDown();
   }
