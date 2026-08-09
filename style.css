@@ -429,7 +429,11 @@
     justify-content: center;
     transition: transform 0.15s, background 0.2s;
   }
-
+#img-upload-btn.circle{
+    width:36px;height:36px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px;
+}
   #emoji-btn {
     background: #ffffff;
     font-size: 23px;
