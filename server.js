@@ -1,89 +1,90 @@
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-let chatHandler;
-
-try {
-    chatHandler = require('./api/chat');
-} catch (e) {
-    console.error("加载api/chat.js失败：", e);
-    chatHandler = async (req, res) => {
-        res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
-        res.end(JSON.stringify({ error: "聊天接口文件加载失败" }));
-    }
-}
-
-const setCors = (res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-access-password');
-};
-
-const getBody = req => new Promise(resolve => {
-    let buf = [];
-    req.on('data', d => buf.push(d));
-    req.on('end', () => {
-        try {
-            resolve(JSON.parse(Buffer.concat(buf).toString()));
-        } catch {
-            resolve({});
-        }
-    });
-});
-
-const getContentType = (filePath) => {
-    if (filePath.endsWith('.js')) return 'application/javascript;charset=utf-8';
-    if (filePath.endsWith('.css')) return 'text/css;charset=utf-8';
-    if (filePath.endsWith('.html')) return 'text/html;charset=utf-8';
-    if (filePath.endsWith('.json')) return 'application/json;charset=utf-8';
-    return 'application/octet-stream';
-};
-
-const server = http.createServer(async (req, res) => {
-    setCors(res);
-    if (req.method === 'OPTIONS') {
-        res.writeHead(204);
-        return res.end();
-    }
-
-    // 清理路径多余斜杠
-    const pathname = req.url.replace(/^\/+|\/+$/g, '');
-
+module.exports = async function (req, res) {
     try {
-        // 聊天接口 POST /api/chat
-        if (pathname === 'api/chat' && req.method === 'POST') {
-            req.body = await getBody(req);
-            return await chatHandler(req, res);
+        // 解析请求体
+        const { messages = [], password } = req.body;
+
+        // 1.基础参数校验
+        if (!Array.isArray(messages) || messages.length === 0) {
+            res.writeHead(400, {
+                "Content-Type": "application/json;charset=utf-8"
+            });
+            return res.end(JSON.stringify({
+                code: 400,
+                msg: "对话内容不能为空"
+            }));
         }
 
-        // 历史记录：GET、POST 全都放行，直接返回空数组
-        if (pathname === 'api/history') {
-            res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
-            return res.end(JSON.stringify([]));
+        // 读取环境变量
+        const API_KEY = process.env.API_KEY;
+        const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD;
+        const MODEL_ID = process.env.MODEL_ID || "claude-3-sonnet-20240229";
+
+        // 2.校验后台密钥是否配置
+        if (!API_KEY) {
+            res.writeHead(500, {
+                "Content-Type": "application/json;charset=utf-8"
+            });
+            return res.end(JSON.stringify({
+                code: 500,
+                msg: "服务端未配置Claude接口密钥"
+            }));
         }
 
-        // 静态资源
-        let targetPath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url);
-        fs.readFile(targetPath, (err, data) => {
-            if (err) {
-                res.writeHead(404, { 'Content-Type': 'text/plain;charset=utf-8' });
-                return res.end(`404 Not Found: ${req.url}`);
-            }
-            res.writeHead(200, { 'Content-Type': getContentType(targetPath) });
-            res.end(data);
+        // 3.前端访问密码校验（按需开启）
+        if (ACCESS_PASSWORD && password !== ACCESS_PASSWORD) {
+            res.writeHead(403, {
+                "Content-Type": "application/json;charset=utf-8"
+            });
+            return res.end(JSON.stringify({
+                code: 403,
+                msg: "访问密码错误"
+            }));
+        }
+
+        // ======================
+        // 此处放入你原本调用 Claude 的请求代码
+        // ======================
+        /*
+        const fetchRes = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+                "x-api-key": API_KEY,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                model: MODEL_ID,
+                messages,
+                max_tokens: 1024
+            })
         });
+
+        const result = await fetchRes.json();
+        if (!fetchRes.ok) throw new Error(JSON.stringify(result));
+
+        res.writeHead(200, {
+            "Content-Type": "application/json;charset=utf-8"
+        });
+        return res.end(JSON.stringify(result));
+        */
+
+        // 临时测试占位：直接返回测试回复，先验证接口通不通
+        res.writeHead(200, {
+            "Content-Type": "application/json;charset=utf-8"
+        });
+        return res.end(JSON.stringify({
+            content: "接口连通测试成功，后端无报错"
+        }));
+
     } catch (err) {
-        console.error("请求异常：", err);
-        res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
-        res.end(JSON.stringify({ error: err.message }));
+        // 捕获所有异常，不会直接抛出500崩溃
+        console.error("chat接口执行异常：", err);
+        res.writeHead(500, {
+            "Content-Type": "application/json;charset=utf-8"
+        });
+        return res.end(JSON.stringify({
+            code: 500,
+            msg: "服务内部异常：" + err.message
+        }));
     }
-});
-
-const PORT = process.env.PORT || 8080;
-server.listen(PORT, () => {
-    console.log(`服务已启动，监听端口：${PORT}`);
-});
-
-process.on('uncaughtException', err => {
-    console.error("全局致命异常：", err);
-});
+};
