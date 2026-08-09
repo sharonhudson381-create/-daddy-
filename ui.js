@@ -7,7 +7,7 @@ var panel = document.getElementById('panel');
 var tabsEl = document.getElementById('tabs');
 var gridEl = document.getElementById('grid');
 
-// 图片上传相关DOM
+// 图片上传相关DOM 
 var imgUploadBtn = document.getElementById('img-upload-btn');
 var imgFileInput = document.getElementById('img-file-input');
 var imgPreviewWrap = document.getElementById('img-preview-wrap');
