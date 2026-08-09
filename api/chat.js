@@ -1,4 +1,5 @@
- module.exports = async (req, res) => {
+const PERSONA = require('./persona');
+module.exports = async (req, res) => {
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -34,8 +35,8 @@
         },
         body: JSON.stringify({
           model: process.env.MODEL_ID || 'claude-sonnet-4-6',
-          max_tokens: 1024,
-          system: process.env.SYSTEM_PROMPT || '你是一个助手。',
+          max_tokens: 2048,
+          system: process.env.SYSTEM_PROMPT || PERSONA,
           messages
         })
       });
