@@ -1,16 +1,24 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const chatHandler = require('./api/chat');
+let chatHandler;
 
-// 全局统一跨域头部
+try {
+    chatHandler = require('./api/chat');
+} catch (e) {
+    console.error("加载api/chat.js失败：", e);
+    chatHandler = async (req, res) => {
+        res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ error: "聊天接口文件加载失败" }));
+    }
+}
+
 const setCors = (res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type,x-access-password');
 };
 
-// 读取POST请求JSON数据
 const getBody = req => new Promise(resolve => {
     let buf = [];
     req.on('data', d => buf.push(d));
@@ -23,7 +31,6 @@ const getBody = req => new Promise(resolve => {
     });
 });
 
-// 根据文件后缀返回对应MIME类型
 const getContentType = (filePath) => {
     if (filePath.endsWith('.js')) return 'application/javascript;charset=utf-8';
     if (filePath.endsWith('.css')) return 'text/css;charset=utf-8';
@@ -34,43 +41,49 @@ const getContentType = (filePath) => {
 
 const server = http.createServer(async (req, res) => {
     setCors(res);
-
-    // OPTIONS预检请求直接放行
     if (req.method === 'OPTIONS') {
         res.writeHead(204);
         return res.end();
     }
 
-    // 1. 聊天对话接口
-    if (req.url === '/api/chat' && req.method === 'POST') {
-        req.body = await getBody(req);
-        return chatHandler(req, res);
-    }
+    // 统一去除路径首尾多余斜杠，兼容 /api/history、/api/history/
+    const pathname = req.url.replace(/^\/+|\/+$/g, '');
 
-    // 2. 新增历史记录接口，返回空数组解决404报错
-    if (req.url === '/api/history' && req.method === 'GET') {
-        res.writeHead(200, {
-            'Content-Type': 'application/json;charset=utf-8'
-        });
-        // 返回空聊天历史，前端不会再报404
-        return res.end(JSON.stringify([]));
-    }
-
-    // 3. 托管页面、js、css等全部静态资源文件
-    const targetPath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url);
-    fs.readFile(targetPath, (err, fileData) => {
-        if (err) {
-            res.writeHead(404, { 'Content-Type': 'text/plain;charset=utf-8' });
-            return res.end('文件不存在');
+    try {
+        // 聊天接口 POST /api/chat
+        if (pathname === 'api/chat' && req.method === 'POST') {
+            req.body = await getBody(req);
+            return await chatHandler(req, res);
         }
-        res.writeHead(200, {
-            'Content-Type': getContentType(targetPath)
+
+        // 历史记录接口 GET /api/history
+        if (pathname === 'api/history' && req.method === 'GET') {
+            res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+            return res.end(JSON.stringify([]));
+        }
+
+        // 静态资源处理
+        let targetPath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url);
+        fs.readFile(targetPath, (err, data) => {
+            if (err) {
+                res.writeHead(404, { 'Content-Type': 'text/plain;charset=utf-8' });
+                return res.end(`404 Not Found: ${req.url}`);
+            }
+            res.writeHead(200, { 'Content-Type': getContentType(targetPath) });
+            res.end(data);
         });
-        res.end(fileData);
-    });
+    } catch (err) {
+        console.error("请求异常：", err);
+        res.writeHead(500, { 'Content-Type': 'application/json;charset=utf-8' });
+        res.end(JSON.stringify({ error: err.message }));
+    }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
     console.log(`服务已启动，监听端口：${PORT}`);
+});
+
+process.on('uncaughtException', err => {
+    console.error("全局致命异常：", err);
 });
