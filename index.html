@@ -128,6 +128,15 @@
   const sendBtn = document.getElementById('send-btn');
 
   let history = JSON.parse(localStorage.getItem('chat_history') || '[]');
+let accessPassword = localStorage.getItem('access_password') || '';
+
+    function ensurePassword() {
+      if (!accessPassword) {
+        accessPassword = (prompt('请输入口令') || ').trim();
+        if (accessPassword) localStorage.setItem('access_password', accessPassword);
+      }
+      return accessPassword;
+    }
 
   function render() {
     chatBox.innerHTML = '';
@@ -166,13 +175,24 @@
 
     try {
       const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history })
-      });
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-access-password': ensurePassword()
+          },
+          body: JSON.stringify({ messages: history })
+        });
+  
+        const data = await res.json();
+        removeThinking();
 
-      const data = await res.json();
-      removeThinking();
+        if (res.status === 401) {
+          localStorage.removeItem('access_password');
+          accessPassword = '';
+          history.push({ role: 'assistant', content: '口令不对，刷新页面重新输入。' });
+          render();
+          return;
+        }
 
         const reply = data?.content?.[0]?.text
     || ('出错了：' + (typeof data?.error === 'string' ? data.error : JSON.stringify(data)));
