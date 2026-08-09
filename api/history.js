@@ -2,25 +2,35 @@ var crypto = require('crypto');
 
   function keyFor(pwd) {
     var h = crypto.createHash('sha256').update(pwd).digest('hex');
-    return 'chat:' + h.slice(0, 32);
+    return 'chat_' + h.slice(0, 32);
   }
 
-  function kvFetch(path, body) {
+  function kvCmd(cmd) {
     var base = (process.env.KV_REST_API_URL || '').replace(/\/+$/, '');
     var token = process.env.KV_REST_API_TOKEN || '';
-    var opts = {
+    return fetch(base, {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + token,
         'Content-Type': 'application/json'
-      }
-    };
-    if (body !== undefined) opts.body = JSON.stringify(body);
-    return fetch(base + path, opts).then(function (r) {
-      return r.json();
+      },
+      body: JSON.stringify(cmd)
+    }).then(function (r) {
+      return r.text().then(function (txt) {
+        var parsed;
+        try {
+          parsed = JSON.parse(txt);
+        } catch (e) {
+          throw new Error('KV 返回非 JSON（' + r.status + '）: ' + txt.slice(0, 200));
+        }
+        if (!r.ok || (parsed && parsed.error)) {
+          throw new Error('KV 错误（' + r.status + '）: ' + (parsed.error || txt.slice(0, 200)));
+        }
+        return parsed;
+      });
     });
   }
-  
+
   module.exports = async (req, res) => {
     var gate = (process.env.ACCESS_PASSWORD || '').trim();
     var given = (req.headers['x-access-password'] || '').trim();
@@ -39,13 +49,13 @@ var crypto = require('crypto');
   
     try {
       if (req.method === 'GET') {
-        var got = await kvFetch('/get/' + key);
+        var got = await kvCmd(['GET', key]);
         var raw = got && got.result;
         var msgs = [];
-        if (raw) {
+        if (raw && typeof raw === 'string') {
           try {
-            msgs = JSON.parse(raw);
-            if (!Array.isArray(msgs)) msgs = [];
+            var parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) msgs = parsed;
           } catch (e) {
             msgs = [];
           }
@@ -59,12 +69,12 @@ var crypto = require('crypto');
           return res.status(400).json({ error: 'messages 必须是数组' });
         }
         var trimmed = incoming.slice(-400);
-        await kvFetch('/set/' + key, JSON.stringify(trimmed));
+        await kvCmd(['SET', key, JSON.stringify(trimmed)]);
         return res.status(200).json({ ok: true, saved: trimmed.length });
       }
 
       if (req.method === 'DELETE') {
-        await kvFetch('/del/' + key);
+        await kvCmd(['DEL', key]);
         return res.status(200).json({ ok: true });
       }
 
