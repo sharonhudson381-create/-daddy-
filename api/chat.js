@@ -1,36 +1,33 @@
-// 新增跨域前置处理
+// 挪到文件顶部，不要放进函数内重复加载
+const PERSONA = require('../persona');
+const MAX_TURNS = 20; // 大幅缩减上下文，优先只保留最近20轮，减轻负载
+
 module.exports = async (req, res) => {
-    // CORS 全局放行，解决移动端浏览器跨域拦截
+    // CORS 跨域配置
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-access-password');
 
-    // 预检 OPTIONS 请求直接放行
+    // 预检OPTIONS快速放行
     if (req.method === 'OPTIONS') {
         return res.status(204).end();
     }
 
-    const PERSONA = require('../persona');
-    const MAX_TURNS = 60;
+    // 只允许POST
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
+    }
 
-    // 将单条消息转为 Claude 支持的 content 结构（兼容纯文本 / 文本+图片）
+    // 组装Claude多模态消息结构
     function buildMessageItem(msg) {
         const { role, content, image } = msg;
-        // 没有图片：直接返回字符串
         if (!image) {
             return { role, content };
         }
-
-        // 携带 base64 图片，组装多模态数组格式
         const contentArr = [];
-        // 文字部分
         if (content && content.trim()) {
-            contentArr.push({
-                type: "text",
-                text: content
-            });
+            contentArr.push({ type: "text", text: content });
         }
-        // 图片部分，拆解 base64
         const [mimePart, base64Data] = image.split(',');
         const mediaType = mimePart.replace('data:', '');
         contentArr.push({
@@ -41,15 +38,7 @@ module.exports = async (req, res) => {
                 data: base64Data
             }
         });
-
-        return {
-            role,
-            content: contentArr
-        };
-    }
-
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
+        return { role, content: contentArr };
     }
 
     const { messages } = req.body || {};
@@ -61,6 +50,7 @@ module.exports = async (req, res) => {
     const apiKey = (process.env.API_KEY || '').trim();
     const gate = (process.env.ACCESS_PASSWORD || '').trim();
 
+    // 口令校验
     if (gate) {
         const given = (req.headers['x-access-password'] || '').trim();
         if (given !== gate) {
@@ -69,22 +59,19 @@ module.exports = async (req, res) => {
     }
 
     if (!apiKey) {
-        return res.status(500).json({ error: '服务端没读到 API_KEY' });
+        return res.status(500).json({ error: '服务端未配置 API_KEY' });
     }
 
-    // 环境变量优先级高于本地persona文件
     const systemPrompt = process.env.SYSTEM_PROMPT?.trim() || PERSONA;
     const recent = messages.slice(-MAX_TURNS);
-
-    // 删掉重复塞入人设的初始化对话，system参数统一承载人设，减少冗余
     const formattedRecent = recent.map(item => buildMessageItem(item));
 
-    try {
-        // 设置15秒超时，手机弱网避免无限挂起
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
+    // Vercel最大10s，后端超时设置8s，抢在平台杀进程之前主动返回超时
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
 
-        const response = await fetch(baseUrl + '/v1/messages', {
+    try {
+        const response = await fetch(`${baseUrl}/v1/messages`, {
             method: 'POST',
             signal: controller.signal,
             headers: {
@@ -93,8 +80,8 @@ module.exports = async (req, res) => {
                 'x-api-key': apiKey
             },
             body: JSON.stringify({
-                model: process.env.MODEL_ID || 'claude-sonnet-4-6',
-                max_tokens: 2048,
+                model: process.env.MODEL_ID || 'claude-sonnet-4',
+                max_tokens: 1024, // 适当降低单次输出token，缩短生成耗时
                 system: systemPrompt,
                 messages: formattedRecent
             })
@@ -107,24 +94,26 @@ module.exports = async (req, res) => {
             data = JSON.parse(raw);
         } catch (e) {
             return res.status(502).json({
-                error: '上游返回非 JSON（状态 ' + response.status + '）：' + raw.slice(0, 300),
+                error: `上游返回非JSON，状态码${response.status}：${raw.slice(0, 300)}`,
                 endpoint: baseUrl
             });
         }
 
         if (!response.ok) {
             return res.status(response.status).json({
-                error: (data && data.error && data.error.message) || JSON.stringify(data).slice(0, 300),
-                upstream_status: response.status,
-                endpoint: baseUrl
+                error: data?.error?.message || JSON.stringify(data).slice(0, 300),
+                upstream_status: response.status
             });
         }
 
-        res.status(200).json(data);
+        return res.status(200).json(data);
+
     } catch (err) {
+        clearTimeout(timer);
         if (err.name === 'AbortError') {
-            return res.status(504).json({ error: '请求超时，请切换WiFi重试' });
+            // 后端主动超时，精准返回，不再等到Vercel强行断连
+            return res.status(504).json({ error: '服务器响应超时，当前线路拥堵，精简文字或稍后重试' });
         }
-        res.status(500).json({ error: err.message, endpoint: baseUrl });
+        return res.status(500).json({ error: err.message });
     }
 };
