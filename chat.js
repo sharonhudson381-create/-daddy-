@@ -58,15 +58,400 @@ var chatBox = document.getElementById('chat-box');
   var packIndex = 0;
 
   var msgs = [];
-  try {
-    msgs = JSON.parse(localStorage.getItem('chat_history') || '[]');
-    if (!Array.isArray(msgs)) msgs = [];
-  } catch (e) {
-    msgs = [];
-  }
-
   var accessPassword = localStorage.getItem('access_password') || '';
   var sending = false;
+  var loaded = false;
+
+  function localBackup() {
+    try {
+      var raw = localStorage.getItem('chat_history');
+      if (!raw) return [];
+      var a = JSON.parse(raw);
+      return Array.isArray(a) ? a : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveLocal() {
+    try {
+      localStorage.setItem('chat_history', JSON.stringify(msgs));
+    } catch (e) {
+      return;
+    }
+  }
+
+  function saveRemote() {
+    if (!accessPassword) return;
+    fetch('/api/history', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-access-password': accessPassword
+      },
+      body: JSON.stringify({ messages: msgs })
+    }).catch(function () {
+      return;
+    });
+  }
+  
+  function save() {
+    saveLocal();
+    saveRemote();
+  }
+
+  function showLoading() {
+    chatBox.innerHTML = '';
+    var d = document.createElement('div');
+    d.id = 'empty';
+    d.textContent = '正在取回我们的记录...';
+    chatBox.appendChild(d);
+  }
+
+  function loadRemote() {
+    var pwd = ensurePassword();
+    if (!pwd) {
+      msgs = localBackup();
+      loaded = true;
+      render();
+      refreshSendBtn();
+      return;
+    }
+
+    showLoading();
+
+    fetch('/api/history', {
+      method: 'GET',
+      headers: { 'x-access-password': pwd }
+    }).then(function (res) {
+      return res.json().then(function (d) {
+        return { status: res.status, data: d };
+      });
+    }).then(function (r) {
+      loaded = true;
+      if (r.status === 401) {
+        localStorage.removeItem('access_password');
+        accessPassword = '';
+        msgs = [];
+        render();
+        showNote('口令不对，刷新页面重新输入');
+        refreshSendBtn();
+        return;
+      }
+      var remote = (r.data && r.data.messages) || [];
+      var local = localBackup();
+      if (remote.length >= local.length) {
+        msgs = remote;
+      } else {
+        msgs = local;
+        saveRemote();
+      }
+      saveLocal();
+      render();
+      refreshSendBtn();
+    }).catch(function () {
+      loaded = true;
+      msgs = localBackup();
+      render();
+      showNote('云端记录读取失败，暂时用本地记录');
+      refreshSendBtn();
+    });
+  }
+  
+  function buildTabs() {
+    tabsEl.innerHTML = '';
+    PACK_NAMES.forEach(function (name, i) {
+      var b = document.createElement('button');
+      b.className = 'tab' + (i === packIndex ? ' on' : '');
+      b.textContent = name;
+      b.addEventListener('click', function () {
+        packIndex = i;
+        buildTabs();
+        buildGrid();
+      });
+      tabsEl.appendChild(b);
+    });
+  }
+
+  function buildGrid() {
+    gridEl.innerHTML = '';
+    var list = EM[PACK_NAMES[packIndex]];
+    list.forEach(function (e) {
+      var b = document.createElement('button');
+      b.className = 'em';
+      b.textContent = e;
+      b.addEventListener('click', function () {
+        insertText(e);
+      });
+      gridEl.appendChild(b);
+    });
+  }
+
+  function insertText(t) {
+    var start = input.selectionStart;
+    var end = input.selectionEnd;
+    if (start === null || start === undefined) start = input.value.length;
+    if (end === null || end === undefined) end = input.value.length;
+    input.value = input.value.slice(0, start) + t + input.value.slice(end);
+    var pos = start + t.length;
+    input.setSelectionRange(pos, pos);
+    input.focus();
+    autoGrow();
+    refreshSendBtn();
+  }
+
+  function isEmojiOnly(s) {
+    var stripped = s.replace(/\s/g, '');
+    if (!stripped) return false;
+    if (Array.from(stripped).length > 4) return false;
+    return !/[0-9A-Za-z一-龥]/.test(stripped);
+  }
+
+  function timeLabel() {
+    var d = new Date();
+    var h = d.getHours();
+    var m = d.getMinutes();
+    var hh = h < 10 ? '0' + h : '' + h;
+    var mm = m < 10 ? '0' + m : '' + m;
+    return hh + ':' + mm;
+  }
+
+  function bubble(role, text, note) {
+    var row = document.createElement('div');
+    var cls = 'row ';
+    if (note) {
+      cls += 'note';
+    } else if (role === 'user') {
+      cls += 'user';
+    } else {
+      cls += 'ai';
+    }
+    row.className = cls;
+
+    var msg = document.createElement('div');
+    if (!note && isEmojiOnly(text)) {
+      msg.className = 'msg emoji-only';
+    } else {
+      msg.className = 'msg';
+    }
+    msg.textContent = text;
+    row.appendChild(msg);
+
+    if (!note) {
+      var t = document.createElement('div');
+      t.className = 'time';
+      t.textContent = timeLabel();
+      row.appendChild(t);
+    }
+
+    chatBox.appendChild(row);
+    return row;
+  }
+
+  function scrollDown() {
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  function render() {
+    chatBox.innerHTML = '';
+    if (msgs.length === 0) {
+      var e = document.createElement('div');
+      e.id = 'empty';
+      e.innerHTML = '<span class="big">\u{1F3E0}</span>这里只有我们两个<br>说点什么吧';
+      chatBox.appendChild(e);
+      return;
+    }
+      headers: {
+        'Content-Type': 'application/json',
+        'x-access-password': accessPassword
+      },
+      body: JSON.stringify({ messages: msgs })
+    }).catch(function () {
+      return;
+    });
+  }
+
+  function save() {
+    saveLocal();
+    saveRemote();
+  }
+
+  function showLoading() {
+    chatBox.innerHTML = '';
+    var d = document.createElement('div');
+    d.id = 'empty';
+    d.textContent = '正在取回我们的记录...';
+    chatBox.appendChild(d);
+  }
+
+  function loadRemote() {
+    var pwd = ensurePassword();
+    if (!pwd) {
+      msgs = localBackup();
+      loaded = true;
+      render();
+      refreshSendBtn();
+      return;
+    }
+
+    showLoading();
+
+    fetch('/api/history', {
+      method: 'GET',
+      headers: { 'x-access-password': pwd }
+    }).then(function (res) {
+      return res.json().then(function (d) {
+        return { status: res.status, data: d };
+      });
+    }).then(function (r) {
+      loaded = true;
+      if (r.status === 401) {
+        localStorage.removeItem('access_password');
+        accessPassword = '';
+    if (sending || !loaded) return;
+
+    var text = input.value.trim();
+    if (!text) return;
+
+    var pwd = ensurePassword();
+    if (!pwd) return;
+  
+    sending = true;
+    msgs.push({ role: 'user', content: text });
+    input.value = '';
+    autoGrow();
+    refreshSendBtn();
+    panel.classList.remove('open');
+    emojiBtn.classList.remove('on');
+    render();
+    addTyping();
+
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-access-password': pwd
+      },
+      body: JSON.stringify({ messages: msgs })
+    }).then(function (res) {
+      return res.json().then(function (data) {
+        return { status: res.status, data: data };
+      });
+    }).then(function (r) {
+      removeTyping();
+
+      if (r.status === 401) {
+        localStorage.removeItem('access_password');
+        accessPassword = '';
+        msgs.pop();
+        render();
+        showNote('口令不对，刷新页面重新输入');
+        return;
+      }
+
+      var data = r.data;
+      if (data && data.content && data.content[0] && data.content[0].text) {
+        msgs.push({ role: 'assistant', content: data.content[0].text });
+        save();
+        render();
+        return;
+      }
+
+      var reason;
+      if (data && data.error) {
+        if (typeof data.error === 'string') {
+          reason = data.error;
+        } else {
+          reason = JSON.stringify(data.error);
+        }
+      } else {
+        reason = JSON.stringify(data).slice(0, 300);
+      }
+      msgs.pop();
+      save();
+      render();
+      showNote('出错了：' + reason);
+    }).catch(function () {
+      removeTyping();
+      msgs.pop();
+      save();
+      render();
+      showNote('网络出错了，检查连接后重试');
+    }).then(function () {
+      sending = false;
+      refreshSendBtn();
+    });
+  }
+
+      },
+      body: JSON.stringify({ messages: msgs })
+    }).catch(function () {
+      return;
+    });
+  }
+
+  function save() {
+    saveLocal();
+    saveRemote();
+  }
+
+  function showLoading() {
+    chatBox.innerHTML = '';
+    var d = document.createElement('div');
+    d.id = 'empty';
+    d.textContent = '正在取回我们的记录...';
+    chatBox.appendChild(d);
+  }
+
+  function loadRemote() {
+    var pwd = ensurePassword();
+    if (!pwd) {
+      msgs = localBackup();
+      loaded = true;
+      render();
+      refreshSendBtn();
+      return;
+    }
+
+    showLoading();
+
+    fetch('/api/history', {
+      method: 'GET',
+      headers: { 'x-access-password': pwd }
+    }).then(function (res) {
+      return res.json().then(function (d) {
+        return { status: res.status, data: d };
+      });
+    }).then(function (r) {
+      loaded = true;
+      if (r.status === 401) {
+        localStorage.removeItem('access_password');
+        accessPassword = '';
+        msgs = [];
+        render();
+        showNote('口令不对，刷新页面重新输入');
+        refreshSendBtn();
+        return;
+      }
+      var remote = (r.data && r.data.messages) || [];
+      var local = localBackup();
+      if (remote.length >= local.length) {
+        msgs = remote;
+      } else {
+        msgs = local;
+        saveRemote();
+      }
+      saveLocal();
+      render();
+      refreshSendBtn();
+    }).catch(function () {
+      loaded = true;
+      msgs = localBackup();
+      render();
+      showNote('云端记录读取失败，暂时用本地记录');
+      refreshSendBtn();
+    });
+  }
 
   function buildTabs() {
     tabsEl.innerHTML = '';
@@ -124,7 +509,9 @@ var chatBox = document.getElementById('chat-box');
     var hh = h < 10 ? '0' + h : '' + h;
     var mm = m < 10 ? '0' + m : '' + m;
     return hh + ':' + mm;
-  }function bubble(role, text, note) {
+  }
+
+  function bubble(role, text, note) {
     var row = document.createElement('div');
     var cls = 'row ';
     if (note) {
@@ -170,7 +557,7 @@ var chatBox = document.getElementById('chat-box');
       return;
     }
     msgs.forEach(function (m) {
-       bubble(m.role, m.content, false);
+      bubble(m.role, m.content, false);
     });
     scrollDown();
   }
@@ -196,7 +583,7 @@ var chatBox = document.getElementById('chat-box');
     var r = document.getElementById('typing-row');
     if (r) r.remove();
   }
-  
+
   function ensurePassword() {
     if (!accessPassword) {
       var entered = prompt('请输入口令');
@@ -208,27 +595,19 @@ var chatBox = document.getElementById('chat-box');
     return accessPassword;
   }
 
-  function save() {
-    try {
-      localStorage.setItem('chat_history', JSON.stringify(msgs));
-    } catch (e) {
-      // 存储满了就跳过，不影响聊天
-    }
-  }
-
   function autoGrow() {
     input.style.height = 'auto';
     var h = input.scrollHeight;
     if (h > 120) h = 120;
     input.style.height = h + 'px';
   }
-  
+
   function refreshSendBtn() {
-    sendBtn.disabled = sending || input.value.trim() === '';
+    sendBtn.disabled = sending || !loaded || input.value.trim() === '';
   }
 
   function send() {
-    if (sending) return;
+    if (sending || !loaded) return;
 
     var text = input.value.trim();
     if (!text) return;
@@ -314,12 +693,20 @@ var chatBox = document.getElementById('chat-box');
       emojiBtn.classList.remove('on');
     }
   });
-  
+
   clearBtn.addEventListener('click', function () {
     if (msgs.length === 0) return;
-    if (!confirm('清空所有聊天记录？清空后无法恢复。')) return;
+    if (!confirm('清空所有聊天记录？云端和本地都会删除，无法恢复。')) return;
     msgs = [];
-    save();
+    saveLocal();
+    if (accessPassword) {
+      fetch('/api/history', {
+        method: 'DELETE',
+        headers: { 'x-access-password': accessPassword }
+      }).catch(function () {
+        return;
+      });
+    }
     render();
   });
 
@@ -341,7 +728,4 @@ var chatBox = document.getElementById('chat-box');
 
   buildTabs();
   buildGrid();
-  render();
-  refreshSendBtn();
-
-
+  loadRemote();
