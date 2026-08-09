@@ -4,6 +4,10 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
     console.error('未处理的Promise异步异常：', reason);
 });
+if (pathname === 'api/chat' && req.method === 'POST') {
+    await chatHandler(req, res);
+    return;
+}
 module.exports = async function (req, res) {
     try {
         // 解析请求体
