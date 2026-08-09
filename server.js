@@ -21,6 +21,14 @@ const getBody = req => new Promise(resolve => {
     });
 });
 
+// 根据后缀匹配对应的MIME类型
+const getContentType = (filePath) => {
+    if(filePath.endsWith('.js')) return 'application/javascript;charset=utf-8';
+    if(filePath.endsWith('.css')) return 'text/css;charset=utf-8';
+    if(filePath.endsWith('.html')) return 'text/html;charset=utf-8';
+    return 'application/octet-stream';
+};
+
 const server = http.createServer(async (req, res) => {
     setCors(res);
     // OPTIONS预检放行
@@ -32,12 +40,18 @@ const server = http.createServer(async (req, res) => {
         return chatHandler(req, res);
     }
 
-    // 首页静态页面
-    const htmlPath = path.join(__dirname, 'index.html');
-    fs.readFile(htmlPath, (err, html) => {
-        if (err) return res.writeHead(404).end('页面不存在');
-        res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
-        res.end(html);
+    // 拼接本地文件真实路径
+    let targetPath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url);
+
+    fs.readFile(targetPath, (err, fileData) => {
+        if (err) {
+            res.writeHead(404, {'Content-Type':'text/plain;charset=utf-8'});
+            return res.end('文件不存在');
+        }
+        res.writeHead(200, {
+            'Content-Type': getContentType(targetPath)
+        });
+        res.end(fileData);
     });
 });
 
