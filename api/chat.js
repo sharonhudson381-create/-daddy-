@@ -16,6 +16,13 @@
     }
 
     try {
+      const gate = (process.env.ACCES_PASSWORD || '').trim();
+    if (gate) {
+      const given = (req.headers['x-access-password'] || '').trim();
+      if (given !== gate) {
+        return res.status(401).json({ error: '口令不对' });
+      }
+    }
       const response = await fetch(baseUrl + '/v1/messages', {
         method: 'POST',
         headers: {
