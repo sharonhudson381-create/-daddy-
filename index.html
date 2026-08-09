@@ -174,7 +174,8 @@
       const data = await res.json();
       removeThinking();
 
-       const reply = data?.content?.[0]?.text || ('出错了：' + (data?.error || '未知原因'));
+        const reply = data?.content?.[0]?.text
+    || ('出错了：' + (typeof data?.error === 'string' ? data.error : JSON.stringify(data)));
       history.push({ role: 'assistant', content: reply });
       localStorage.setItem('chat_history', JSON.stringify(history));
       render();
