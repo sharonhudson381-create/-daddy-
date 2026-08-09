@@ -1,3 +1,13 @@
+const express = require('express');
+const app = express();
+
+// 关键配置，放大JSON接收上限至10MB
+app.use(express.json({ limit: '10mb' }));
+
+// 下面你原本的静态托管、接口路由保持原样
+app.use(express.static(__dirname));
+app.post('/api/chat', require('./api/chat'));
+// ...其余代码不动
 function localBackup() {
   try {
     var raw = localStorage.getItem('chat_history');
