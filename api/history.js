@@ -1,4 +1,4 @@
-var crypto = require('crypto');
+ var crypto = require('crypto');
 
   function keyFor(pwd) {
     var h = crypto.createHash('sha256').update(pwd).digest('hex');
