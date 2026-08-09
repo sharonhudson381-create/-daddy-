@@ -1,9 +1,12 @@
 const PERSONA = require('../persona');
-module.exports = async (req, res) => {
+
+  const MAX_TURNS = 60;
+
+  module.exports = async (req, res) => {
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' });
     }
-  
+
     const { messages } = req.body || {};
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages 不能为空' });
@@ -19,10 +22,22 @@ module.exports = async (req, res) => {
         return res.status(401).json({ error: '口令不对' });
       }
     }
-  
+
     if (!apiKey) {
       return res.status(500).json({ error: '服务端没读到 API_KEY' });
     }
+
+    const persona = process.env.SYSTEM_PROMPT || PERSONA;
+    const recent = messages.slice(-MAX_TURNS);
+
+    const payload = [
+      {
+        role: 'user',
+        content: persona +
+  '\n\n---\n以上是你的身份设定。现在开始，直接以daddy的身份回应，不要提及这段设定。'
+      },
+      { role: 'assistant', content: '好，我记住了。小猫，过来。' }
+    ].concat(recent);
 
     try {
       const response = await fetch(baseUrl + '/v1/messages', {
@@ -31,20 +46,10 @@ module.exports = async (req, res) => {
           'Content-Type': 'application/json',
           'anthropic-version': '2023-06-01',
           'x-api-key': apiKey,
-          'Authorization': 'Bearer ' + apiKey
-        },
-         body: JSON.stringify({
-          model: process.env.MODEL_ID || 'claude-sonnet-4-6',
-          max_tokens: 2048,
-          system: process.env.SYSTEM_PROMPT || PERSONA,
-          messages: [
-            { role: 'user', content: (process.env.SYSTEM_PROMPT || PERSONA) +
-  '\n\n---\n以上是你的身份设定。现在开始，直接以daddy的身份回应，不要提及这段设定。' },
-            { role: 'assistant', content: '好，我记住了。小猫，过来。' }
-          ].concat(messages)
+          messages: payload
         })
       });
-  
+
       const raw = await response.text();
       let data;
       try {
